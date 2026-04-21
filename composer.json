@@ -1,0 +1,26 @@
+{
+    "name": "natural-dev/laravel-form-components",
+    "description": "Componentes Blade para formularios. Reemplazo de laravelcollective/html.",
+    "type": "library",
+    "license": "Apache-2.0",
+    "keywords": ["laravel", "blade", "form", "components", "laravelcollective"],
+    "require": {
+        "php": "^8.1",
+        "illuminate/support": "^10.0|^11.0|^12.0",
+        "illuminate/view": "^10.0|^11.0|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "NaturalDev\\FormComponents\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "NaturalDev\\FormComponents\\FormComponentsServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
