@@ -29,6 +29,7 @@
         : ($modelChecked ?? (bool) $checked);
 
     $resolvedId = $id ?: ($nameAttr ? preg_replace('/[^a-zA-Z0-9\-_:.]/', '_', $nameAttr) : null);
+    $hasError = $nameAttr && isset($errors) && $errors->has($oldKey ?? $nameAttr);
 @endphp
 
 @if(!is_null($uncheckedValue) && $nameAttr)
@@ -41,5 +42,5 @@
     value="{{ $value }}"
     @if(!is_null($resolvedId)) id="{{ $resolvedId }}" @endif
     @if($isChecked) checked @endif
-    {{ $attributes }}
+    {{ $attributes->class(['is-invalid' => $hasError]) }}
 />

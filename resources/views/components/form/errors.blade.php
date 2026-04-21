@@ -7,8 +7,8 @@
 @endphp
 
 @if($bagObj && $bagObj->any())
-    <div class="alert alert-danger">
-        <ul>
+    <div class="alert alert-danger" role="alert">
+        <ul class="mb-0">
             @foreach ($bagObj->all() as $error)
                 <li>{{ $error }}</li>
             @endforeach

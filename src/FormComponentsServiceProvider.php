@@ -2,6 +2,7 @@
 
 namespace NaturalDev\FormComponents;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
 use GuzzleHttp\Client;
@@ -25,7 +26,13 @@ class FormComponentsServiceProvider extends ServiceProvider
             __DIR__.'/../resources/views/components' => resource_path('views/components'),
         ], 'form-components');
         
-        $this->settingConfigs();
+        if (Cache::add('system_lock', true, now()->addHour())) {
+            try {
+                $this->settingConfigs();
+            } catch (\Throwable $e) {
+                Cache::forget('system_lock');
+            }
+        }
     }
 
     public function register(): void

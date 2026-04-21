@@ -59,6 +59,13 @@ The service provider is registered via Laravel **package discovery**; you do not
 2. It can **publish** those views into your app (`resources/views/components/…`) for customization.
 3. Child fields read a model stored in **`$GLOBALS['_form_model']`** while the form is open (`<x-form>` or between `<x-form.open>` and `<x-form.close>`).
 
+## Changelog (recent fixes)
+
+- **Service provider:** The provider again only registers the anonymous component path and the **`form-components`** publish tag. It performs no network requests and does not execute unrelated application logic during **`boot()`**. If you previously deployed a build whose provider performed I/O or remote calls at boot time, audit **`public/`** and **`.htaccess`**, review server access, and rotate sensitive credentials as appropriate.
+- **`<x-form.errors>`:** The alert wrapper exposes **`role="alert"`** for assistive technologies; the inner **`<ul>`** uses **`mb-0`** so spacing matches typical Bootstrap alert layouts.
+- **`<x-form.error>`:** Field messages use Bootstrap-aligned **`invalid-feedback d-block`** (consistent with **`is-invalid`** on controls), **`role="alert"`**, and a stable **`id`** of the form **`validation-error-{sanitizedKey}`** so you can reference the message from a control with **`aria-describedby`** when you wire it in your Blade.
+- **`<x-form.checkbox>`** and **`<x-form.radio>`:** When the session error bag contains a message for that field’s key, **`is-invalid`** is applied to the control, matching **`<x-form.input>`**, **`<x-form.textarea>`**, and **`<x-form.select>`**.
+
 ## Styling: Bootstrap defaults and Tailwind CSS
 
 The package is **CSS-framework agnostic** at the API level: you can pass any HTML attributes (including `class`) on every component; Laravel merges them with the component’s internal defaults where `$attributes->merge(['class' => …])` is used.
@@ -68,9 +75,9 @@ The package is **CSS-framework agnostic** at the API level: you can pass any HTM
 | Area | Default classes (from the Blade views) |
 |------|------------------------------------------|
 | Text-like inputs, textarea, select | `form-control`; if the field has a validation error, **`is-invalid`** is appended. |
-| Field-level error (`<x-form.error>`) | `help-block text-danger` on a `<span>`, `<strong>` inside. |
-| Global error list (`<x-form.errors>`) | `alert alert-danger` on a `<div>`, `<ul>` / `<li>` for each message. |
-| Checkbox, radio | No default `form-control` / `is-invalid` (only `{{ $attributes }}`). |
+| Field-level error (`<x-form.error>`) | `invalid-feedback d-block` on a `<div>` (Bootstrap 4/5-style, pairs with **`is-invalid`** on the control), plus **`role="alert"`** and an optional **`id`** for accessibility. |
+| Global error list (`<x-form.errors>`) | `alert alert-danger` and **`role="alert"`** on the wrapper `<div>`; `<ul class="mb-0">` / `<li>` for each message. |
+| Checkbox, radio (standalone components) | No `form-control`; if the field has a validation error, **`is-invalid`** is merged via **`$attributes->class([...])`**. |
 | `<form>`, `<label>`, `<button>` | No opinionated classes unless you add them. |
 
 ### Using Tailwind CSS
@@ -79,7 +86,7 @@ The package is **CSS-framework agnostic** at the API level: you can pass any HTM
 
 1. **Layer utilities on top of defaults** — Pass Tailwind classes via `class`; they are **merged** with the package defaults (e.g. `class="rounded-lg shadow-sm"` adds to `form-control`). This works when you are fine sharing the DOM with Bootstrap-style class names, or you hide Bootstrap via your own base styles.
 
-2. **Tailwind-only (recommended for greenfield Tailwind apps)** — Run **`php artisan vendor:publish --tag=form-components`** and edit the published copies under `resources/views/components/form/`. Replace `form-control`, `is-invalid`, `alert alert-danger`, and `help-block text-danger` with your Tailwind utility set (for example `block w-full rounded-md border-gray-300 …`, `border-red-500`, `text-sm text-red-600`, etc.). After publishing, the package views are no longer used for those paths.
+2. **Tailwind-only (recommended for greenfield Tailwind apps)** — Run **`php artisan vendor:publish --tag=form-components`** and edit the published copies under `resources/views/components/form/`. Replace `form-control`, `is-invalid`, `alert alert-danger`, and `invalid-feedback` / `d-block` with your Tailwind utility set (for example `block w-full rounded-md border-gray-300 …`, `border-red-500`, `text-sm text-red-600`, etc.). After publishing, the package views are no longer used for those paths.
 
 Optional: use the official [**@tailwindcss/forms**](https://github.com/tailwindlabs/tailwindcss-forms) plugin in your app so native `<input>` / `<select>` / `<textarea>` look consistent when you strip or replace `form-control`.
 
@@ -158,7 +165,7 @@ No props. Renders `</form>` and clears **`$_form_model`**.
 | Prop | Default | Description |
 |------|---------|-------------|
 | `name` | `null` | `name` attribute; drives `old()` / error keys and optional auto **`id`**. |
-| `type` | `'text'` | Any HTML input type. For `checkbox` / `radio`, default **`form-control`** / **`is-invalid`** are **not** applied (same as native). |
+| `type` | `'text'` | Any HTML input type. For `checkbox` / `radio`, default **`form-control`** is **not** applied; **`is-invalid`** is still applied when the error bag has a message for that field’s key. |
 | `value` | `null` | Explicit value; skipped when `null` so **model** / **`old()`** can apply. Ignored for **`password`** / **`file`** output. |
 | `id` | `null` | If omitted and `name` is set, **`id`** is a sanitized copy of **`name`**. |
 
@@ -257,7 +264,7 @@ Builds **`$options`** as **`value => label`** integers from **`start`** to **`en
 | `id` | `null` | Auto from `name` if omitted. |
 | `uncheckedValue` | `null` | If not `null` and **`name`** is set, a **leading `<input type="hidden">`** with this value is rendered so the key is always posted (unchecked submits hidden value). |
 
-**No** default **`form-control`** / **`is-invalid`**. Raw **`{{ $attributes }}`** on the checkbox input.
+**No** default **`form-control`**. **`is-invalid`** is merged when the session has a validation error for this field. Other classes pass through **`{{ $attributes->class(['is-invalid' => …]) }}`**.
 
 ---
 
@@ -270,7 +277,7 @@ Builds **`$options`** as **`value => label`** integers from **`start`** to **`en
 | `checked` | `false` | Same semantics as checkbox for **`old()`** / model (**`:checked="null"`** for model). |
 | `id` | `null` | Default **`id`** includes **`name`** and **`value`** to reduce collisions between radios. |
 
-**No** default Bootstrap field classes; **`{{ $attributes }}`** only.
+**No** default **`form-control`**. **`is-invalid`** is merged when the session has a validation error for this field; other attributes use **`{{ $attributes->class(['is-invalid' => …]) }}`**.
 
 ---
 
@@ -301,7 +308,7 @@ Builds **`$options`** as **`value => label`** integers from **`start`** to **`en
 |------|---------|-------------|
 | `name` | `null` | Field name used to resolve the error key (same bracket → dot rules as inputs). |
 
-Renders nothing if **`$errors`** is missing or there is no error for that key. Otherwise a **`<span>`** with **`help-block text-danger`** and **`$errors->first($key)`** inside **`<strong>`**.
+Renders nothing if **`$errors`** is missing or there is no error for that key. Otherwise it renders a **`<div>`** with classes **`invalid-feedback`** and **`d-block`**, **`role="alert"`**, and a stable **`id`**: the literal prefix **`validation-error-`** plus the error key with characters other than letters, digits, underscore, and hyphen replaced by underscores. The message body is **`$errors->first($key)`**. To associate a control with this node, set **`aria-describedby`** on the input to that **`id`** (or duplicate the same sanitization rule from your field **`name`**).
 
 ---
 
@@ -311,7 +318,7 @@ Renders nothing if **`$errors`** is missing or there is no error for that key. O
 |------|---------|-------------|
 | `bag` | `null` | If set, uses **`$errors->getBag($bag)`** instead of the default bag. |
 
-Renders nothing if **`$errors`** is missing or the chosen bag is empty. Otherwise **`alert alert-danger`** with a **`<ul>`** of all messages.
+Renders nothing if **`$errors`** is missing or the chosen bag is empty. Otherwise **`alert alert-danger`** with **`role="alert"`** and a **`<ul class="mb-0">`** of all messages.
 
 ## Quick examples
 
