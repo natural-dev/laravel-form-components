@@ -8,7 +8,7 @@
     $key = $oldKey ?? $nameAttr;
 @endphp
 
-@if($key && $errors->has($key))
+@if($key && isset($errors) && $errors->has($key))
     <span class="help-block text-danger">
         <strong>{{ $errors->first($key) }}</strong>
     </span>

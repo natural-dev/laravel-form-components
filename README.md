@@ -59,80 +59,290 @@ The service provider is registered via Laravel **package discovery**; you do not
 2. It can **publish** those views into your app (`resources/views/components/…`) for customization.
 3. Child fields read a model stored in **`$GLOBALS['_form_model']`** while the form is open (`<x-form>` or between `<x-form.open>` and `<x-form.close>`).
 
-### Form URL: `action` or `route`
+## Styling: Bootstrap defaults and Tailwind CSS
 
-Set the URL with **`action`** (string) or **`route`**:
+The package is **CSS-framework agnostic** at the API level: you can pass any HTML attributes (including `class`) on every component; Laravel merges them with the component’s internal defaults where `$attributes->merge(['class' => …])` is used.
 
-- `route="route.name"` and `routeParams` (array) for named parameters.
-- `:route="['route.name', $id]"` as a shortcut (first element = name, the rest = ordered arguments).
+### Default classes (Bootstrap-oriented)
 
-The **`method`** is uppercased internally: for verbs other than `GET`/`POST` the form is submitted as `POST` and `@method(...)` is rendered (standard Laravel behavior). **`files`** adds `enctype="multipart/form-data"`. **`model`** sets `$GLOBALS['_form_model']` until the form closes.
+| Area | Default classes (from the Blade views) |
+|------|------------------------------------------|
+| Text-like inputs, textarea, select | `form-control`; if the field has a validation error, **`is-invalid`** is appended. |
+| Field-level error (`<x-form.error>`) | `help-block text-danger` on a `<span>`, `<strong>` inside. |
+| Global error list (`<x-form.errors>`) | `alert alert-danger` on a `<div>`, `<ul>` / `<li>` for each message. |
+| Checkbox, radio | No default `form-control` / `is-invalid` (only `{{ $attributes }}`). |
+| `<form>`, `<label>`, `<button>` | No opinionated classes unless you add them. |
 
-## Quick start
+### Using Tailwind CSS
 
-### Slot wrapper (`<x-form>`)
+**Yes, you can use Tailwind** in two complementary ways:
 
-Opens and closes the `<form>` and clears the model at the end.
+1. **Layer utilities on top of defaults** — Pass Tailwind classes via `class`; they are **merged** with the package defaults (e.g. `class="rounded-lg shadow-sm"` adds to `form-control`). This works when you are fine sharing the DOM with Bootstrap-style class names, or you hide Bootstrap via your own base styles.
+
+2. **Tailwind-only (recommended for greenfield Tailwind apps)** — Run **`php artisan vendor:publish --tag=form-components`** and edit the published copies under `resources/views/components/form/`. Replace `form-control`, `is-invalid`, `alert alert-danger`, and `help-block text-danger` with your Tailwind utility set (for example `block w-full rounded-md border-gray-300 …`, `border-red-500`, `text-sm text-red-600`, etc.). After publishing, the package views are no longer used for those paths.
+
+Optional: use the official [**@tailwindcss/forms**](https://github.com/tailwindlabs/tailwindcss-forms) plugin in your app so native `<input>` / `<select>` / `<textarea>` look consistent when you strip or replace `form-control`.
+
+There is **no runtime Tailwind dependency** in this package; Tailwind lives in your app’s build (Vite, etc.).
+
+## Form URL, method, CSRF, and model
+
+These apply to **`<x-form>`** and **`<x-form.open>`** (same props).
+
+| Prop / attribute | Type / default | Description |
+|------------------|----------------|-------------|
+| **`action`** | `string\|null`, default `null` | Absolute or relative form `action` URL. If set, **`route` is ignored**. |
+| **`route`** | `string\|array\|null`, default `null` | Named Laravel route. **String:** `route('name', routeParams)`. **Array:** first element = route name, remaining elements = ordered URL parameters, e.g. `['devices.update', $device]`. |
+| **`routeParams`** | `array`, default `[]` | Used only when **`route`** is a **string**; passed as the second argument to Laravel’s `route()` helper. |
+| **`method`** | `string`, default `'POST'` | Logical HTTP method (e.g. `PUT`, `PATCH`, `DELETE`, `GET`). For anything other than `GET` / `POST`, the `<form>` still uses `method="post"` and Laravel’s **`@method(...)`** directive is emitted. Stored uppercased internally for decisions. |
+| **`files`** | `bool`, default `false` | When `true`, sets **`enctype="multipart/form-data"`** on the `<form>`. |
+| **`model`** | `mixed`, default `null` | When not `null`, assigns **`$GLOBALS['_form_model']`** so child fields can resolve values until the form closes. |
+| **`$attributes` / `class`, `id`, `data-*`, etc.** | — | Forwarded onto the `<form>` element (e.g. `class="space-y-4"`, `id`, `novalidate`). |
+
+**`<x-form>`** wraps a **slot** (your fields), outputs the closing `</form>`, then **`unset`s** `$_form_model`. **`<x-form.open>`** only opens the form; **`<x-form.close>`** only closes `</form>` and clears the model.
+
+**`<x-form.close>`** has no props.
+
+You must set **`action` or `route`**; otherwise `action` on the `<form>` can be empty.
+
+## Value resolution: `old()`, props, and model
+
+For **input**, **textarea**, **select** (including **hidden** / **file** via input), order is:
+
+1. **`old($key)`** when the validation session has a value. **`$key`** is derived from **`name`** (bracket names like `foo[bar]` map to dot-style keys like `foo.bar`). Multi-select names ending in **`[]`** use the base name for `old()` (e.g. `roles[]` → `roles`).
+2. If no `old()`, the explicit prop (**`value`**, **`selected`**, …).
+3. If still unset and **`:model`** is active on the form, **`getAttribute($cleanName)`** on the model (`$cleanName` = segment before `[` in `name`).
+
+**Not filled:** **`value`** is omitted for **`password`** and **`file`** types (so the browser does not prefill secrets or file paths).
+
+### Checkbox and radio
+
+- After validation failure, **checked** state is inferred by comparing **`old()`** to the field’s **`value`**.
+- **Model** for the initial checked state is only read when **`checked` is `null`**. The Blade **`@props`** default for **`checked`** is **`false`**, so **omitting `checked` does not read the model**. Use **`:checked="null"`** when you want the model to drive the initial state.
+
+## Component reference
+
+Unless noted, extra HTML attributes go through **`{{ $attributes }}`** (or **`$attributes->merge([...])`** where stated) on the underlying element.
+
+---
+
+### `<x-form>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `action` | `null` | Form `action` URL. |
+| `route` | `null` | Route name string, array `[name, ...params]`, or `null`. |
+| `routeParams` | `[]` | Named parameters when `route` is a string. |
+| `method` | `'POST'` | Logical method; see table above. |
+| `files` | `false` | Multipart upload. |
+| `model` | `null` | Bound model for children. |
+
+**Slot:** body of the form (fields, buttons). **Default layout classes:** none on `<form>`.
+
+---
+
+### `<x-form.open>`
+
+Same props as **`<x-form>`**. Does **not** render a closing tag; pair with **`<x-form.close>`**.
+
+---
+
+### `<x-form.close>`
+
+No props. Renders `</form>` and clears **`$_form_model`**.
+
+---
+
+### `<x-form.input>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `name` | `null` | `name` attribute; drives `old()` / error keys and optional auto **`id`**. |
+| `type` | `'text'` | Any HTML input type. For `checkbox` / `radio`, default **`form-control`** / **`is-invalid`** are **not** applied (same as native). |
+| `value` | `null` | Explicit value; skipped when `null` so **model** / **`old()`** can apply. Ignored for **`password`** / **`file`** output. |
+| `id` | `null` | If omitted and `name` is set, **`id`** is a sanitized copy of **`name`**. |
+
+**`$attributes->merge(['class' => …])`:** default **`form-control`** (+ **`is-invalid`** if errors), merged with your **`class`**.
+
+---
+
+### `<x-form.hidden>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `name` | `null` | Passed through to **`<x-form.input type="hidden">`**. |
+| `value` | `null` | Hidden value. |
+| `id` | `null` | Optional `id`. |
+
+Forwards **`{{ $attributes }}`** to **input**.
+
+---
+
+### `<x-form.file>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `name` | `null` | File input name. |
+| `id` | `null` | Optional `id`. |
+
+Forwards to **`type="file"`** input; **no** `value` attribute.
+
+---
+
+### `<x-form.textarea>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `name` | `null` | `name` attribute. |
+| `value` | `null` | Body source when not using slot-only content. |
+| `id` | `null` | Auto from `name` if omitted. |
+
+**Content:** inner text is **`$resolvedValue`** if set, otherwise the **slot**. **`$attributes->merge`:** **`form-control`** + **`is-invalid`** when applicable.
+
+---
+
+### `<x-form.select>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `name` | `null` | Select `name`. When **`multiple`** is true, **`[]`** is appended if the name does not already end with **`[]`**. |
+| `options` | `[]` | Associative array **`value => label`** for `<option>` rows. |
+| `selected` | `null` | Selected value(s). Single: scalar. **Multiple:** array or **`Collection`** of scalars. |
+| `id` | `null` | Auto from `name` if omitted. |
+| `placeholder` | `null` | First **`<option value="">`** label; **only when not `multiple`**. |
+| `multiple` | `false` | Boolean multi-select. You may also use the boolean HTML attribute **`multiple`** on the tag. |
+
+**Slot:** extra `<option>` elements (or groups) appended after the generated options.
+
+**`$attributes->merge`:** **`form-control`** + **`is-invalid`**. Renders the **`multiple`** attribute when enabled.
+
+---
+
+### `<x-form.multiselect>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `name` | `null` | Passed to **select** ( **`[]`** appended as needed). |
+| `options` | `[]` | Same as select. |
+| `selected` | `null` | Array or **`Collection`**. |
+| `id` | `null` | Same as select. |
+
+Forwards **`class`** and other attributes except **`multiple`** / **`placeholder`**; **`multiple`** is always on. **`placeholder`** is forced off.
+
+---
+
+### `<x-form.select-range>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `name` | `null` | Passed to inner **`<x-form.select>`**. |
+| `start` | `0` | Range start (integer). |
+| `end` | `100` | Range end (integer). |
+| `selected` | `null` | Initial selected integer, if any. |
+| `step` | `1` | Step size; internally **minimum `1`**. |
+| `id` | `null` | Passed through. |
+| `placeholder` | `null` | Passed to **select**. |
+
+Builds **`$options`** as **`value => label`** integers from **`start`** to **`end`** (inclusive), stepping up or down. Forwards **`{{ $attributes }}`** to **select** (so you can pass **`multiple`**, **`class`**, etc.).
+
+---
+
+### `<x-form.checkbox>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `name` | `null` | Checkbox `name`. |
+| `value` | `1` | Value submitted when checked. |
+| `checked` | `false` | Initial checked state when not using **`old()`** / model. Use **`:checked="null"`** to read **model** (see [Checkbox and radio](#checkbox-and-radio)). |
+| `id` | `null` | Auto from `name` if omitted. |
+| `uncheckedValue` | `null` | If not `null` and **`name`** is set, a **leading `<input type="hidden">`** with this value is rendered so the key is always posted (unchecked submits hidden value). |
+
+**No** default **`form-control`** / **`is-invalid`**. Raw **`{{ $attributes }}`** on the checkbox input.
+
+---
+
+### `<x-form.radio>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `name` | `null` | Radio group `name`. |
+| `value` | `null` | Option value (optional for HTML, but needed for meaningful groups). |
+| `checked` | `false` | Same semantics as checkbox for **`old()`** / model (**`:checked="null"`** for model). |
+| `id` | `null` | Default **`id`** includes **`name`** and **`value`** to reduce collisions between radios. |
+
+**No** default Bootstrap field classes; **`{{ $attributes }}`** only.
+
+---
+
+### `<x-form.label>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `for` | `null` | Target **`id`** of the control. |
+| `value` | `null` | Label text if the slot is empty. |
+
+**Slot:** preferred way to pass label text. **`{{ $attributes }}`** on **`<label>`** (e.g. `class`).
+
+---
+
+### `<x-form.button>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `type` | `'submit'` | Button `type` (`submit`, `button`, `reset`, …). |
+
+**Slot:** button label. **`{{ $attributes }}`** on **`<button>`** (e.g. `class`).
+
+---
+
+### `<x-form.error>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `name` | `null` | Field name used to resolve the error key (same bracket → dot rules as inputs). |
+
+Renders nothing if **`$errors`** is missing or there is no error for that key. Otherwise a **`<span>`** with **`help-block text-danger`** and **`$errors->first($key)`** inside **`<strong>`**.
+
+---
+
+### `<x-form.errors>`
+
+| Prop | Default | Description |
+|------|---------|-------------|
+| `bag` | `null` | If set, uses **`$errors->getBag($bag)`** instead of the default bag. |
+
+Renders nothing if **`$errors`** is missing or the chosen bag is empty. Otherwise **`alert alert-danger`** with a **`<ul>`** of all messages.
+
+## Quick examples
+
+### Slot wrapper
 
 ```blade
-<x-form :route="['devices.update', $device]" method="PUT" :model="$device" files>
+<x-form :route="['devices.update', $device]" method="PUT" :model="$device" files class="space-y-4">
     <x-form.label for="name" value="Name" />
-    <x-form.input name="name" />
+    <x-form.input name="name" class="mt-1 block w-full" />
     <x-form.error name="name" />
 
-    <x-form.button class="btn btn-primary">Save</x-form.button>
+    <x-form.button class="rounded bg-indigo-600 px-3 py-2 text-white">Save</x-form.button>
 </x-form>
 ```
 
-### Open / close style
+### Open / close
 
 ```blade
 <x-form.open :route="['devices.store']" method="POST" files />
     <x-form.input name="name" :value="old('name')" />
-    <x-form.button class="btn btn-primary">Create</x-form.button>
+    <x-form.button>Create</x-form.button>
 <x-form.close />
 ```
 
-## Values: `old()`, props, and model
+### Multi-select
 
-For **input**, **textarea**, and **select** (and **hidden** / **file** via input), resolution order is:
+```blade
+<x-form.multiselect name="roles" :options="$roleOptions" :selected="$user->roles->pluck('id')->all()" />
 
-1. **`old($key)`** when present in the validation session (the key is derived from `name`, turning `foo[bar]` into dot notation like `foo.bar`).
-2. If there is no `old()`, the explicit prop (**`value`**, **`selected`**, etc.).
-3. If the prop does not set a value and **`:model`** is active, `getAttribute()` is used on the field’s base name (the segment before `[` in nested names).
-
-**Exceptions:** `value` is not filled for **`password`** or **`file`** inputs.
-
-### Checkbox and radio (actual behavior)
-
-- After a validation error, the checked state is inferred by comparing **`old()`** to the field’s **`value`**.
-- Reading the **model** for the initial checked state only happens when the **`checked` prop is `null`**. The component default is `false`, so in typical usage **`<x-form.checkbox name="remember" />` does not read the model’s boolean** unless you pass `:checked="null"` to delegate to the model (or rely on `old()` after a failed POST).
-
-**Radio** buttons follow the same rule: the model is used only if `checked` is `null`; otherwise the boolean `checked` prop or `old()` comparison applies.
-
-## Components and props
-
-| Component | Summary |
-|-----------|---------|
-| `<x-form>` | Slot: full form + `@csrf`, `@method`, closing tag, and model `unset`. |
-| `<x-form.open>` | Opens `<form>`; same props as above (does not close). |
-| `<x-form.close>` | Closes `</form>` and removes `$GLOBALS['_form_model']`. |
-| `<x-form.input>` | `name`, `type` (default `text`), `value`, `id`. Base class `form-control` except for `type` `checkbox`/`radio`. Adds `is-invalid` when the field has errors. |
-| `<x-form.hidden>` | Forwards to `<x-form.input type="hidden" />`. |
-| `<x-form.file>` | Forwards to `<x-form.input type="file" />`. |
-| `<x-form.textarea>` | Body: resolved value or **slot**. |
-| `<x-form.select>` | `options` (array value => label), `selected`, `placeholder` (only when not `multiple`), `multiple` via HTML attribute; extra options via **slot** inside `<select>`. |
-| `<x-form.select-range>` | Integers from `start` to `end` with `step` (minimum 1); forwards to `select`. |
-| `<x-form.checkbox>` | `value` (default `1`), `checked`, `uncheckedValue` (renders a leading `hidden` with that value when unchecked). No automatic `form-control` / `is-invalid`. |
-| `<x-form.radio>` | `value`, `checked`; default `id` includes the value to avoid collisions. |
-| `<x-form.label>` | `for`, label text in `value` or slot. |
-| `<x-form.button>` | `type` defaults to `submit`. |
-| `<x-form.error>` | First message for the field (`$errors->first`), with Bootstrap 3–style classes (`help-block text-danger`). |
-| `<x-form.errors>` | Renders all messages; optional **`bag`** prop for a specific `MessageBag`. |
-
-## Styling (Bootstrap)
-
-By default, typical **Bootstrap** classes are applied (`form-control`, `is-invalid` on error, `alert alert-danger` for the error list). You can merge extra classes with the `class` attribute on each component (`$attributes->merge()` where implemented).
+<x-form.select name="roles" :options="$roleOptions" :selected="$ids" multiple />
+```
 
 ## Publishing views
 
@@ -140,26 +350,26 @@ By default, typical **Bootstrap** classes are applied (`form-control`, `is-inval
 php artisan vendor:publish --tag=form-components
 ```
 
-Package templates are copied to your app’s `resources/views/components/` (including the `form/` directory). Published copies override the package views.
+Copies all package views to **`resources/views/components/`** in your app (including **`form/`**). Published files override the package.
 
 ## Limitations
 
-- **One active model per form:** `$GLOBALS['_form_model']` is global. Do not nest forms or rely on this mechanism for two model-bound forms at once.
-- You must provide **`action` or `route`**; if both are missing, the form’s `action` attribute will be empty.
-- **Checkbox** / **radio** behavior does not mirror the full Collective API; see the values section above.
+- **One active model per form:** `$GLOBALS['_form_model']` is global. Do not nest model-bound forms.
+- **`action` or `route`** is required for a valid `action` URL.
+- **Checkbox / radio** model binding requires **`:checked="null"`**; see [Checkbox and radio](#checkbox-and-radio).
 
 ## Future improvements
 
 Ideas that would bring the package closer to parity or polish, without committing to a roadmap:
 
-- **Checkbox / radio + model:** align default behavior with intuitive model binding (e.g. treat “prop omitted” differently from `checked="false"`, or document a single supported pattern) so typical `<x-form.checkbox name="agree" />` usage reads booleans from the model without needing `:checked="null"`.
-- **Form context without `$GLOBALS`:** pass model state through a stack or view composer so nested or parallel forms are safer and the implementation is easier to reason about.
-- **Theming / CSS framework presets:** optional variants (Bootstrap 5, Tailwind-only classes, or unstyled) instead of hard-coded Bootstrap 3–leaning classes on error components.
-- **Extension points:** documented patterns or small hooks for app-level “macros” (custom Blade components or published partials that wrap `<x-form.input>`).
-- **Collective-style helpers (out of scope today):** anything equivalent to the **`Html`** facade (links, lists, etc.) would be a separate concern or package; forms stay the focus here.
-- **Tests in the package:** automated coverage for edge cases (`name` with brackets, `multiple` select, `GET` forms without CSRF, etc.).
+- **Checkbox / radio + model:** default **`checked`** semantics so typical usage reads the model without **`:checked="null"`**.
+- **Form context without `$GLOBALS`:** stack or view-based context for safer nesting.
+- **Optional shipped themes:** presets (Bootstrap 5, Tailwind-only snippets) alongside current defaults.
+- **Extension points:** documented patterns for app-level “macros” via published partials or wrappers.
+- **Collective-style `Html` helpers:** out of scope here; separate package or app code.
+- **Automated tests** in this repository (Testbench, view snapshots).
 
-Contributions or issues for any of the above are welcome in the repository.
+Contributions or issues are welcome in the repository.
 
 ## Replacing laravelcollective/html
 
