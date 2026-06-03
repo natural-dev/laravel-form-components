@@ -24,7 +24,11 @@
 
     $resolvedValue = $oldKey ? old($oldKey, $value ?? $modelValue) : ($value ?? $modelValue);
 
-    $resolvedId = $id ?: ($nameAttr ? preg_replace('/[^a-zA-Z0-9\-_:.]/', '_', $nameAttr) : null);
+    $resolvedId = $id ?: (
+        $nameAttr && $type !== 'hidden'
+            ? preg_replace('/[^a-zA-Z0-9\-_:.]/', '_', $nameAttr)
+            : null
+    );
 
     $hasError = $nameAttr && isset($errors) && $errors->has($oldKey ?? $nameAttr);
     $baseClass = in_array($type, ['checkbox', 'radio'], true) ? null : 'form-control';
