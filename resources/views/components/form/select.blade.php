@@ -67,10 +67,26 @@
     @endif
 
     @foreach(($options ?? []) as $optValue => $optLabel)
-        @php $optValueStr = (string) $optValue; @endphp
-        <option value="{{ $optValueStr }}" @if(in_array($optValueStr, $selectedValues, true)) selected @endif>
-            {{ $optLabel }}
-        </option>
+        @php
+            $groupOptions = $optLabel instanceof \Illuminate\Contracts\Support\Arrayable
+                ? $optLabel->toArray()
+                : (is_array($optLabel) ? $optLabel : null);
+        @endphp
+        @if(! is_null($groupOptions))
+            <optgroup label="{{ $optValue }}">
+                @foreach($groupOptions as $groupValue => $groupLabel)
+                    @php $groupValueStr = (string) $groupValue; @endphp
+                    <option value="{{ $groupValueStr }}" @if(in_array($groupValueStr, $selectedValues, true)) selected @endif>
+                        {{ $groupLabel }}
+                    </option>
+                @endforeach
+            </optgroup>
+        @else
+            @php $optValueStr = (string) $optValue; @endphp
+            <option value="{{ $optValueStr }}" @if(in_array($optValueStr, $selectedValues, true)) selected @endif>
+                {{ $optLabel }}
+            </option>
+        @endif
     @endforeach
 
     {{ $slot }}

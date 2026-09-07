@@ -61,6 +61,7 @@ The service provider is registered via Laravel **package discovery**; you do not
 
 ## Changelog (recent fixes)
 
+- **1.0.4 — `<x-form.select>` / `<x-form.multiselect>`:** `options` accepts nested arrays (`group label => [value => label]`) and renders native **`<optgroup>`** elements. Ungrouped options and groups can be mixed in the same list. Works with bootstrap-select **`data-live-search`** (groups stay native; the search still filters options). The slot can still append extra `<option>` / `<optgroup>` markup.
 - **Service provider:** The provider again only registers the anonymous component path and the **`form-components`** publish tag. It performs no network requests and does not execute unrelated application logic during **`boot()`**. If you previously deployed a build whose provider performed I/O or remote calls at boot time, audit **`public/`** and **`.htaccess`**, review server access, and rotate sensitive credentials as appropriate.
 - **`<x-form.errors>`:** The alert wrapper exposes **`role="alert"`** for assistive technologies; the inner **`<ul>`** uses **`mb-0`** so spacing matches typical Bootstrap alert layouts.
 - **`<x-form.error>`:** Field messages use Bootstrap-aligned **`invalid-feedback d-block`** (consistent with **`is-invalid`** on controls), **`role="alert"`**, and a stable **`id`** of the form **`validation-error-{sanitizedKey}`** so you can reference the message from a control with **`aria-describedby`** when you wire it in your Blade.
@@ -213,13 +214,13 @@ Forwards to **`type="file"`** input; **no** `value` attribute.
 | Prop | Default | Description |
 |------|---------|-------------|
 | `name` | `null` | Select `name`. When **`multiple`** is true, **`[]`** is appended if the name does not already end with **`[]`**. |
-| `options` | `[]` | Associative array **`value => label`** for `<option>` rows. |
+| `options` | `[]` | Associative array **`value => label`** for `<option>` rows. Nested arrays (**`group label => [value => label]`**, or an **`Arrayable`** of the same) render as **`<optgroup>`**. You can mix ungrouped options and groups in one list. |
 | `selected` | `null` | Selected value(s). Single: scalar. **Multiple:** array or **`Collection`** of scalars. |
 | `id` | `null` | Auto from `name` if omitted. |
 | `placeholder` | `null` | First **`<option value="">`** label; **only when not `multiple`**. |
 | `multiple` | `false` | Boolean multi-select. You may also use the boolean HTML attribute **`multiple`** on the tag. |
 
-**Slot:** extra `<option>` elements (or groups) appended after the generated options.
+**Slot:** extra `<option>` or `<optgroup>` elements appended after the generated options.
 
 **`$attributes->merge`:** **`form-control`** + **`is-invalid`**. Renders the **`multiple`** attribute when enabled.
 
@@ -230,7 +231,7 @@ Forwards to **`type="file"`** input; **no** `value` attribute.
 | Prop | Default | Description |
 |------|---------|-------------|
 | `name` | `null` | Passed to **select** ( **`[]`** appended as needed). |
-| `options` | `[]` | Same as select. |
+| `options` | `[]` | Same as select, including nested **`<optgroup>`** arrays. |
 | `selected` | `null` | Array or **`Collection`**. |
 | `id` | `null` | Same as select. |
 
@@ -349,6 +350,38 @@ Renders nothing if **`$errors`** is missing or the chosen bag is empty. Otherwis
 <x-form.multiselect name="roles" :options="$roleOptions" :selected="$user->roles->pluck('id')->all()" />
 
 <x-form.select name="roles" :options="$roleOptions" :selected="$ids" multiple />
+```
+
+### Select with `<optgroup>`
+
+Nested arrays become native `<optgroup>` elements (compatible with bootstrap-select live search):
+
+```blade
+<x-form.select
+    name="device_id"
+    placeholder="Select a device"
+    class="selectpicker"
+    data-live-search="true"
+    :options="[
+        'Active' => [
+            '1' => 'GPS-001',
+            '2' => 'GPS-002',
+        ],
+        'Inactive' => [
+            '3' => 'GPS-003',
+        ],
+    ]"
+/>
+```
+
+You can still mix flat options with groups, or append extra groups in the slot:
+
+```blade
+<x-form.select name="size" :options="['L' => 'Large', 'S' => 'Small']">
+    <optgroup label="Other">
+        <option value="custom">Custom</option>
+    </optgroup>
+</x-form.select>
 ```
 
 ## Publishing views
